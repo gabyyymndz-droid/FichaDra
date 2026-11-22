@@ -356,6 +356,14 @@
       return `${diaSemana} ${numeroEnLetras(dia)} de ${nombreMes} de ${numeroEnLetras(anio)}`;
     };
 
+    const fechaEnFormatoSalvadoreno = (valor) => {
+      const coincidencia = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor);
+      if (!coincidencia) return "—";
+
+      const [, anio, mes, dia] = coincidencia;
+      return `${dia}-${mes}-${anio}`;
+    };
+
     const bindText = (inputId, outputIds) => {
       const el = document.getElementById(inputId);
       const update = () => {
@@ -370,6 +378,8 @@
               : numero;
           } else if (id === "out-desde-texto") {
             target.textContent = fechaEnLetras(el.value);
+          } else if (inputId.startsWith("in-fecha-") || inputId.startsWith("in-desde-")) {
+            target.textContent = fechaEnFormatoSalvadoreno(el.value);
           } else {
             target.textContent = el.value.trim() || "—";
           }
@@ -458,6 +468,35 @@
       const contentW = pageW - margin * 2;
       let y = 18;
 
+      const dibujarParrafoConNegritas = (segmentos, x, yInicial, maxWidth) => {
+        const lineas = [[]];
+        let anchoLinea = 0;
+
+        segmentos.forEach(({ texto, estilo }) => {
+          const palabras = texto.match(/\S+\s*/g) || [];
+          doc.setFont("helvetica", estilo);
+          palabras.forEach((palabra) => {
+            const ancho = doc.getTextWidth(palabra);
+            if (anchoLinea > 0 && anchoLinea + ancho > maxWidth) {
+              lineas.push([]);
+              anchoLinea = 0;
+            }
+            lineas[lineas.length - 1].push({ texto: palabra.trimEnd(), estilo, ancho });
+            anchoLinea += ancho;
+          });
+        });
+
+        lineas.forEach((linea, indice) => {
+          let xActual = x;
+          linea.forEach(({ texto, estilo, ancho }) => {
+            doc.setFont("helvetica", estilo);
+            doc.text(texto, xActual, yInicial + indice * 5.5);
+            xActual += ancho;
+          });
+        });
+        return lineas.length;
+      };
+
       const [logoImg, selloImg, firmaImg] = await Promise.all([
         cargarImagenBase64("img/diente.jpg"),
         cargarImagenBase64("img/selloprueba.jpg"),
@@ -517,7 +556,6 @@
         y += 7;
         doc.setFont("helvetica", "bold");
         doc.text("Días otorgados:", margin, y);
-        doc.setFont("helvetica", "normal");
         doc.text(numeroEnLetras(diasNum), margin + 31, y);
 
         doc.setFont("helvetica", "bold");
@@ -526,10 +564,14 @@
         doc.text(desdeRaw, col2X + 22, y);
 
         y += 12;
-        const parrafo = `Por medio de la presente se hace constar que el/la paciente requiere incapacidad por un período de ${diasTexto}, a partir del ${desdeTexto}.`;
-        const lineasParrafo = doc.splitTextToSize(parrafo, contentW);
-        doc.text(lineasParrafo, margin, y);
-        y += lineasParrafo.length * 5.5 + 6;
+        const lineasParrafo = dibujarParrafoConNegritas([
+          { texto: "Por medio de la presente se hace constar que el/la paciente requiere incapacidad por un período de ", estilo: "normal" },
+          { texto: diasTexto, estilo: "bold" },
+          { texto: ", a partir del ", estilo: "normal" },
+          { texto: desdeTexto, estilo: "bold" },
+          { texto: ".", estilo: "normal" },
+        ], margin, y, contentW);
+        y += lineasParrafo * 5.5 + 6;
 
         doc.setFont("helvetica", "bold");
         doc.text("Observaciones:", margin, y);
