@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <title>Constancia de Incapacidad</title>
+  <style>
+    :root {
+      --bg: #f8f7f4;
+      --surface: #ffffff;
+      --ink: #1a1a1a;
+      --accent: #5c162e;
+      --border: #d6d3cd;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      display: grid;
+      gap: 20px;
+    }
+
+    .panel, .documento {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 20px;
+    }
+
+    .grid-form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    input, textarea, select, button {
+      font: inherit;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--ink);
+    }
+
+    button {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .acciones {
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .navegacion {
+      display: flex;
+      gap: 8px;
+    }
+
+    .navegacion button {
+      background: var(--surface);
+      color: var(--accent);
+    }
+
+    .navegacion button[aria-pressed="true"] {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    /* Vista previa tipo hoja */
+    .membrete {
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 12px;
+      margin-bottom: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .membrete img {
+      max-height: 64px;
+      max-width: 180px;
+      object-fit: contain;
+    }
+
+    .datos-px {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+      margin-bottom: 16px;
+      font-size: 0.95rem;
+    }
+
+    .cuerpo-incapacidad {
+      line-height: 1.55;
+      margin-bottom: 28px;
+    }
+
+    .texto-receta {
+      white-space: pre-wrap;
+    }
+
+    .firmas {
+      display: flex;
+      justify-content: flex-end;
+      gap: 24px;
+      margin-top: 32px;
+      align-items: flex-end;
+    }
+
+    .bloque-firma {
+      text-align: center;
+      min-width: 180px;
+    }
+
+    .bloque-firma img {
+      max-height: 75px;
+      max-width: 160px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto 6px;
+    }
+
+    .linea-firma {
+      border-top: 1px solid var(--ink);
+      padding-top: 4px;
+      font-size: 0.85rem;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .documento {
+        border: none;
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <nav class="navegacion no-print" aria-label="Tipo de documento">
+      <button type="button" data-documento="incapacidad" aria-pressed="true">Incapacidad</button>
+      <button type="button" data-documento="receta" aria-pressed="false">Receta</button>
+    </nav>
+
+    <section class="panel no-print" id="form-incapacidad">
+      <h2>Datos de la incapacidad</h2>
+      <div class="grid-form">
+        <label>
+          Nombre del paciente
+          <input type="text" id="in-paciente-incapacidad" placeholder="Ej. Ana López" />
+        </label>
+        <label>
+          Fecha de cita / emisión
+          <input type="date" id="in-fecha-incapacidad" />
+        </label>
+        <label>
+          Días de incapacidad
+          <input type="number" id="in-dias-incapacidad" min="1" value="1" />
+        </label>
+        <label>
+          Desde
+          <input type="date" id="in-desde-incapacidad" />
+        </label>
+        <label style="grid-column: 1 / -1;">
+          Diagnóstico / Observaciones
+          <textarea id="in-obs-incapacidad" rows="3" placeholder="Motivo o indicaciones médicas..."></textarea>
+        </label>
+      </div>
+
+      <div class="acciones">
+        <button type="button" data-print>Guardar / Descargar PDF</button>
+      </div>
+    </section>
+
+    <section class="panel no-print" id="form-receta" hidden>
+      <h2>Datos de la receta</h2>
+      <div class="grid-form">
+        <label>
+          Nombre del paciente
+          <input type="text" id="in-paciente-receta" placeholder="Ej. Ana López" />
+        </label>
+        <label>
+          Edad
+          <input type="number" id="in-edad-receta" min="0" placeholder="Edad" />
+        </label>
+        <label>
+          Fecha
+          <input type="date" id="in-fecha-receta" />
+        </label>
+        <label style="grid-column: 1 / -1;">
+          Receta
+          <textarea id="in-texto-receta" rows="6" placeholder="Escribe aquí la receta..."></textarea>
+        </label>
+      </div>
+
+      <div class="acciones">
+        <button type="button" data-print>Guardar / Descargar PDF</button>
+      </div>
+    </section>
+
+    <article class="documento" id="hoja-pdf">
+      <header class="membrete">
+        <div>
+          <strong id="out-clinica">Dra. Milva Guiselle González de Méndez</strong><br />
+          <small>Santa Tecla no se que más por la coca :)</small><br />
+          <small>Constancia de incapacidad</small>
+        </div>
+        <img id="out-membrete" src="img/diente.jpg" alt="Membrete" />
+      </header>
+
+      <div class="datos-px">
+        <div><strong>Paciente:</strong> <span id="out-paciente">—</span></div>
+        <div><strong>Fecha de cita:</strong> <span id="out-fecha">—</span></div>
+        <div><strong>Días otorgados:</strong> <span id="out-dias">1</span></div>
+        <div><strong>A partir de:</strong> <span id="out-desde">—</span></div>
+      </div>
+
+      <div class="cuerpo-incapacidad">
+        <p>
+          Por medio de la presente se hace constar que el/la paciente requiere incapacidad por un período de
+          <strong id="out-dias-texto">1 día</strong>, a partir del <strong id="out-desde-texto">la fecha indicada</strong>.
+        </p>
+        <p><strong>Observaciones:</strong> <span id="out-obs">—</span></p>
+      </div>
+
+      <footer class="firmas">
+        <div class="bloque-firma" id="box-sello">
+          <img id="out-sello" src="img/selloprueba.jpg" alt="Sello" />
+        </div>
+        <div class="bloque-firma">
+          <img id="out-firma" src="img/firma.jpeg" alt="Firma" />
+          <div class="linea-firma">Firma autorizada</div>
+        </div>
+      </footer>
+    </article>
+
+    <article class="documento" id="hoja-receta" hidden>
+      <header class="membrete">
+        <div>
+          <strong>Dra. Milva Guiselle González de Méndez</strong><br />
+          <small>Santa Tecla no se que más por la coca :)</small><br />
+        </div>
+        <img src="img/diente.jpg" alt="Membrete" />
+      </header>
+
+      <div class="datos-px">
+        <div><strong>Paciente:</strong> <span id="out-paciente-receta">—</span></div>
+        <div><strong>Edad:</strong> <span id="out-edad-receta">—</span></div>
+        <div><strong>Fecha:</strong> <span id="out-fecha-receta">—</span></div>
+      </div>
+
+      <div class="cuerpo-incapacidad texto-receta">
+        <p><strong>Receta:</strong></p>
+        <p id="out-texto-receta">—</p>
+      </div>
+
+      <footer class="firmas">
+        <div class="bloque-firma">
+          <img src="img/selloprueba.jpg" alt="Sello" />
+        </div>
+        <div class="bloque-firma">
+          <img src="img/firma.jpeg" alt="Firma" />
+          <div class="linea-firma">Firma autorizada</div>
+        </div>
+      </footer>
+    </article>
+  </div>
+
+  <script>
+    const bindText = (inputId, outputIds) => {
+      const el = document.getElementById(inputId);
+      const update = () => {
+        outputIds.forEach((id) => {
+          const target = document.getElementById(id);
+          if (!target) return;
+          if (inputId.startsWith("in-dias-")) {
+            const n = Math.max(1, Number(el.value) || 1);
+            target.textContent = id.includes("texto") ? `${n} ${n === 1 ? "día" : "días"}` : n;
+          } else {
+            target.textContent = el.value.trim() || "—";
+          }
+        });
+      };
+      el.addEventListener("input", update);
+      update();
+    };
+
+    bindText("in-paciente-incapacidad", ["out-paciente"]);
+    bindText("in-fecha-incapacidad", ["out-fecha"]);
+    bindText("in-dias-incapacidad", ["out-dias", "out-dias-texto"]);
+    bindText("in-desde-incapacidad", ["out-desde", "out-desde-texto"]);
+    bindText("in-obs-incapacidad", ["out-obs"]);
+    bindText("in-paciente-receta", ["out-paciente-receta"]);
+    bindText("in-edad-receta", ["out-edad-receta"]);
+    bindText("in-fecha-receta", ["out-fecha-receta"]);
+    bindText("in-texto-receta", ["out-texto-receta"]);
+
+    const documentos = {
+      incapacidad: {
+        formulario: document.getElementById("form-incapacidad"),
+        documento: document.getElementById("hoja-pdf"),
+      },
+      receta: {
+        formulario: document.getElementById("form-receta"),
+        documento: document.getElementById("hoja-receta"),
+      },
+    };
+    document.querySelectorAll("[data-documento]").forEach((boton) => {
+      boton.addEventListener("click", () => {
+        Object.entries(documentos).forEach(([nombre, vista]) => {
+          const activo = boton.dataset.documento === nombre;
+          vista.formulario.hidden = !activo;
+          vista.documento.hidden = !activo;
+          document.querySelector(`[data-documento="${nombre}"]`).setAttribute("aria-pressed", String(activo));
+        });
+      });
+    });
+
+    document.querySelectorAll("[data-print]").forEach((boton) => {
+      boton.addEventListener("click", () => {
+        window.print();
+      });
+    });
+  </script>
+</body>
+</html>
