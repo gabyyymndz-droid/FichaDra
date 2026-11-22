@@ -124,6 +124,14 @@
       white-space: pre-wrap;
     }
 
+    .texto-receta p {
+      margin: 0;
+    }
+
+    .texto-receta p + p {
+      margin-top: 8px;
+    }
+
     .firmas {
       display: flex;
       justify-content: flex-end;
@@ -152,9 +160,13 @@
     }
 
     @media print {
+      @page {
+        margin: 0;
+      }
+
       body {
         background: #fff;
-        padding: 0;
+        padding: 12mm;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
@@ -164,6 +176,15 @@
       .documento {
         border: none;
         padding: 0;
+      }
+
+      #hoja-receta .datos-px {
+        margin-bottom: 8px;
+      }
+
+      #hoja-receta .cuerpo-incapacidad {
+        line-height: 1.35;
+        margin-bottom: 12px;
       }
     }
   </style>
@@ -300,6 +321,64 @@
   </div>
 
   <script>
+    const numeroEnLetras = (numero) => {
+      const menoresTreinta = [
+        "cero", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve",
+        "diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete",
+        "dieciocho", "diecinueve", "veinte", "veintiuno", "veintidós", "veintitrés",
+        "veinticuatro", "veinticinco", "veintiséis", "veintisiete", "veintiocho", "veintinueve",
+      ];
+      const decenas = ["", "", "", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"];
+      const centenas = ["", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos", "setecientos", "ochocientos", "novecientos"];
+
+      if (!Number.isInteger(numero) || numero < 0 || numero > 999999) return String(numero);
+      if (numero < 30) return menoresTreinta[numero];
+      if (numero < 100) {
+        const decena = decenas[Math.floor(numero / 10)];
+        return numero % 10 ? `${decena} y ${numeroEnLetras(numero % 10)}` : decena;
+      }
+      if (numero === 100) return "cien";
+      if (numero < 1000) {
+        const centena = centenas[Math.floor(numero / 100)];
+        return numero % 100 ? `${centena} ${numeroEnLetras(numero % 100)}` : centena;
+      }
+
+      const miles = Math.floor(numero / 1000);
+      const resto = numero % 1000;
+      const textoMiles = miles === 1 ? "mil" : `${numeroEnLetras(miles)} mil`;
+      return resto ? `${textoMiles} ${numeroEnLetras(resto)}` : textoMiles;
+    };
+
+    const numeroDeDiasEnLetras = (numero) =>
+      numeroEnLetras(numero).replace(/veintiuno$/, "veintiún").replace(/uno$/, "un");
+
+    const fechaEnLetras = (valor) => {
+      const coincidencia = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor);
+      if (!coincidencia) return "la fecha indicada";
+
+      const anio = Number(coincidencia[1]);
+      const mes = Number(coincidencia[2]);
+      const dia = Number(coincidencia[3]);
+      const fecha = new Date(0);
+      fecha.setUTCFullYear(anio, mes - 1, dia);
+      if (
+        fecha.getUTCFullYear() !== anio ||
+        fecha.getUTCMonth() !== mes - 1 ||
+        fecha.getUTCDate() !== dia
+      ) {
+        return "la fecha indicada";
+      }
+
+      const partes = new Intl.DateTimeFormat("es-SV", {
+        weekday: "long",
+        month: "long",
+        timeZone: "UTC",
+      }).formatToParts(fecha);
+      const diaSemana = partes.find((parte) => parte.type === "weekday").value;
+      const nombreMes = partes.find((parte) => parte.type === "month").value;
+      return `${diaSemana} ${numeroEnLetras(dia)} de ${nombreMes} de ${numeroEnLetras(anio)}`;
+    };
+
     const bindText = (inputId, outputIds) => {
       const el = document.getElementById(inputId);
       const update = () => {
@@ -308,7 +387,12 @@
           if (!target) return;
           if (inputId.startsWith("in-dias-")) {
             const n = Math.max(1, Number(el.value) || 1);
-            target.textContent = id.includes("texto") ? `${n} ${n === 1 ? "día" : "días"}` : n;
+            const numero = numeroEnLetras(n);
+            target.textContent = id === "out-dias-texto"
+              ? `${numeroDeDiasEnLetras(n)} ${n === 1 ? "día" : "días"}`
+              : numero;
+          } else if (id === "out-desde-texto") {
+            target.textContent = fechaEnLetras(el.value);
           } else {
             target.textContent = el.value.trim() || "—";
           }
