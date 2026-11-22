@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
   <title>Constancia de Incapacidad</title>
   <style>
     :root {
@@ -15,12 +16,12 @@
       --border: #d6d3cd;
     }
 
-    * { box-sizing: border-box; }
+    *, *::before, *::after { box-sizing: border-box; }
 
     body {
       margin: 0;
       padding: 16px;
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--ink);
     }
@@ -66,6 +67,11 @@
       border-color: var(--accent);
       font-weight: 600;
       cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
     }
 
     .acciones {
@@ -158,45 +164,16 @@
       padding-top: 4px;
       font-size: 0.85rem;
     }
-
-    @media print {
-      @page {
-        margin: 0;
-      }
-
-      body {
-        background: #fff;
-        padding: 12mm;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-      .no-print {
-        display: none !important;
-      }
-      .documento {
-        border: none;
-        padding: 0;
-      }
-
-      #hoja-receta .datos-px {
-        margin-bottom: 8px;
-      }
-
-      #hoja-receta .cuerpo-incapacidad {
-        line-height: 1.35;
-        margin-bottom: 12px;
-      }
-    }
   </style>
 </head>
 <body>
   <div class="container">
-    <nav class="navegacion no-print" aria-label="Tipo de documento">
+    <nav class="navegacion" aria-label="Tipo de documento">
       <button type="button" data-documento="incapacidad" aria-pressed="true">Incapacidad</button>
       <button type="button" data-documento="receta" aria-pressed="false">Receta</button>
     </nav>
 
-    <section class="panel no-print" id="form-incapacidad">
+    <section class="panel" id="form-incapacidad">
       <h2>Datos de la incapacidad</h2>
       <div class="grid-form">
         <label>
@@ -222,11 +199,11 @@
       </div>
 
       <div class="acciones">
-        <button type="button" data-print>Guardar / Descargar PDF</button>
+        <button type="button" data-generar-pdf>Guardar / Descargar PDF</button>
       </div>
     </section>
 
-    <section class="panel no-print" id="form-receta" hidden>
+    <section class="panel" id="form-receta" hidden>
       <h2>Datos de la receta</h2>
       <div class="grid-form">
         <label>
@@ -248,7 +225,7 @@
       </div>
 
       <div class="acciones">
-        <button type="button" data-print>Guardar / Descargar PDF</button>
+        <button type="button" data-generar-pdf>Guardar / Descargar PDF</button>
       </div>
     </section>
 
@@ -412,6 +389,8 @@
     bindText("in-fecha-receta", ["out-fecha-receta"]);
     bindText("in-texto-receta", ["out-texto-receta"]);
 
+    let documentoActivo = "incapacidad";
+
     const documentos = {
       incapacidad: {
         formulario: document.getElementById("form-incapacidad"),
@@ -422,10 +401,12 @@
         documento: document.getElementById("hoja-receta"),
       },
     };
+
     document.querySelectorAll("[data-documento]").forEach((boton) => {
       boton.addEventListener("click", () => {
+        documentoActivo = boton.dataset.documento;
         Object.entries(documentos).forEach(([nombre, vista]) => {
-          const activo = boton.dataset.documento === nombre;
+          const activo = documentoActivo === nombre;
           vista.formulario.hidden = !activo;
           vista.documento.hidden = !activo;
           document.querySelector(`[data-documento="${nombre}"]`).setAttribute("aria-pressed", String(activo));
@@ -433,9 +414,229 @@
       });
     });
 
-    document.querySelectorAll("[data-print]").forEach((boton) => {
-      boton.addEventListener("click", () => {
-        window.print();
+    const cargarImagenBase64 = (src) =>
+      new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+            resolve({
+              dataUrl: canvas.toDataURL("image/jpeg", 0.95),
+              width: img.naturalWidth,
+              height: img.naturalHeight,
+            });
+          } catch {
+            resolve(null);
+          }
+        };
+        img.onerror = () => resolve(null);
+        img.src = src;
+      });
+
+    const escalarImagen = (imgData, maxW, maxH) => {
+      const ratio = Math.min(maxW / imgData.width, maxH / imgData.height, 1);
+      return {
+        w: imgData.width * ratio,
+        h: imgData.height * ratio,
+      };
+    };
+
+    const generarPDF = async () => {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: "mm", format: "letter", orientation: "portrait" });
+
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 18;
+      const contentW = pageW - margin * 2;
+      let y = 18;
+
+      const [logoImg, selloImg, firmaImg] = await Promise.all([
+        cargarImagenBase64("img/diente.jpg"),
+        cargarImagenBase64("img/selloprueba.jpg"),
+        cargarImagenBase64("img/firma.jpeg"),
+      ]);
+
+      // Encabezado / Membrete
+      doc.setTextColor(26, 26, 26);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.text("Dra. Milva Guiselle González de Méndez", margin, y + 4);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(80, 80, 80);
+      doc.text("Santa Tecla no se que más por la coca :)", margin, y + 10);
+
+      if (documentoActivo === "incapacidad") {
+        doc.text("Constancia de incapacidad", margin, y + 15.5);
+      }
+
+      if (logoImg) {
+        const dim = escalarImagen(logoImg, 36, 18);
+        doc.addImage(logoImg.dataUrl, "JPEG", pageW - margin - dim.w, y - 2, dim.w, dim.h);
+      }
+
+      y += 21;
+      doc.setDrawColor(92, 22, 46);
+      doc.setLineWidth(0.7);
+      doc.line(margin, y, pageW - margin, y);
+      y += 10;
+
+      doc.setTextColor(26, 26, 26);
+      doc.setFontSize(10.5);
+
+      if (documentoActivo === "incapacidad") {
+        const paciente = document.getElementById("out-paciente").textContent;
+        const fechaCita = document.getElementById("out-fecha").textContent;
+        const diasNum = Math.max(1, Number(document.getElementById("in-dias-incapacidad").value) || 1);
+        const diasTexto = document.getElementById("out-dias-texto").textContent;
+        const desdeRaw = document.getElementById("out-desde").textContent;
+        const desdeTexto = document.getElementById("out-desde-texto").textContent;
+        const obs = document.getElementById("out-obs").textContent;
+
+        const col2X = margin + contentW / 2 + 4;
+
+        doc.setFont("helvetica", "bold");
+        doc.text("Paciente:", margin, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(paciente, margin + 20, y);
+
+        doc.setFont("helvetica", "bold");
+        doc.text("Fecha de cita:", col2X, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(fechaCita, col2X + 27, y);
+
+        y += 7;
+        doc.setFont("helvetica", "bold");
+        doc.text("Días otorgados:", margin, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(numeroEnLetras(diasNum), margin + 31, y);
+
+        doc.setFont("helvetica", "bold");
+        doc.text("A partir de:", col2X, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(desdeRaw, col2X + 22, y);
+
+        y += 12;
+        const parrafo = `Por medio de la presente se hace constar que el/la paciente requiere incapacidad por un período de ${diasTexto}, a partir del ${desdeTexto}.`;
+        const lineasParrafo = doc.splitTextToSize(parrafo, contentW);
+        doc.text(lineasParrafo, margin, y);
+        y += lineasParrafo.length * 5.5 + 6;
+
+        doc.setFont("helvetica", "bold");
+        doc.text("Observaciones:", margin, y);
+        doc.setFont("helvetica", "normal");
+        const lineasObs = doc.splitTextToSize(obs, contentW - 30);
+        doc.text(lineasObs, margin + 30, y);
+        y += Math.max(lineasObs.length * 5.5, 6) + 18;
+      } else {
+        const paciente = document.getElementById("out-paciente-receta").textContent;
+        const edad = document.getElementById("out-edad-receta").textContent;
+        const fecha = document.getElementById("out-fecha-receta").textContent;
+        const textoReceta = document.getElementById("out-texto-receta").textContent;
+
+        const col2X = margin + contentW / 2 + 4;
+
+        doc.setFont("helvetica", "bold");
+        doc.text("Paciente:", margin, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(paciente, margin + 20, y);
+
+        doc.setFont("helvetica", "bold");
+        doc.text("Edad:", col2X, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(edad, col2X + 13, y);
+
+        y += 7;
+        doc.setFont("helvetica", "bold");
+        doc.text("Fecha:", margin, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(fecha, margin + 15, y);
+
+        y += 12;
+        doc.setFont("helvetica", "bold");
+        doc.text("Receta:", margin, y);
+        y += 6.5;
+
+        doc.setFont("helvetica", "normal");
+        const lineasReceta = doc.splitTextToSize(textoReceta, contentW);
+        doc.text(lineasReceta, margin, y);
+        y += lineasReceta.length * 5.5 + 18;
+      }
+
+      // Bloque de sello y firma (si queda muy abajo, pasa a nueva página)
+      const alturaBloqueFirma = 34;
+      if (y + alturaBloqueFirma > pageH - margin) {
+        doc.addPage();
+        y = margin + 10;
+      }
+
+      const firmaBloqueW = 46;
+      const selloBloqueW = 46;
+      const gapFirmas = 10;
+      const firmaX = pageW - margin - firmaBloqueW;
+      const selloX = firmaX - gapFirmas - selloBloqueW;
+      const baseLineaY = y + 22;
+
+      if (selloImg) {
+        const dim = escalarImagen(selloImg, 44, 22);
+        doc.addImage(
+          selloImg.dataUrl,
+          "JPEG",
+          selloX + (selloBloqueW - dim.w) / 2,
+          baseLineaY - dim.h - 2,
+          dim.w,
+          dim.h
+        );
+      }
+
+      if (firmaImg) {
+        const dim = escalarImagen(firmaImg, 42, 20);
+        doc.addImage(
+          firmaImg.dataUrl,
+          "JPEG",
+          firmaX + (firmaBloqueW - dim.w) / 2,
+          baseLineaY - dim.h - 2,
+          dim.w,
+          dim.h
+        );
+      }
+
+      doc.setDrawColor(26, 26, 26);
+      doc.setLineWidth(0.35);
+      doc.line(firmaX, baseLineaY, firmaX + firmaBloqueW, baseLineaY);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text("Firma autorizada", firmaX + firmaBloqueW / 2, baseLineaY + 4.5, { align: "center" });
+
+      const nombreArchivo = documentoActivo === "incapacidad" ? "incapacidad.pdf" : "receta.pdf";
+      doc.save(nombreArchivo);
+    };
+
+    document.querySelectorAll("[data-generar-pdf]").forEach((boton) => {
+      boton.addEventListener("click", async () => {
+        const botones = document.querySelectorAll("[data-generar-pdf]");
+        botones.forEach((b) => {
+          b.disabled = true;
+          b.textContent = "Generando PDF...";
+        });
+        try {
+          await generarPDF();
+        } finally {
+          botones.forEach((b) => {
+            b.disabled = false;
+            b.textContent = "Guardar / Descargar PDF";
+          });
+        }
       });
     });
   </script>
